@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>CockroachPet Settings</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #2a2a2e;
+      color: #e0e0e0;
+      padding: 24px;
+    }
+    h1 { font-size: 18px; margin-bottom: 20px; }
+    .field { margin-bottom: 16px; }
+    label { display: block; font-size: 13px; color: #aaa; margin-bottom: 6px; }
+    input[type="number"] {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #555;
+      border-radius: 6px;
+      background: #1a1a1e;
+      color: #e0e0e0;
+      font-size: 14px;
+    }
+    .hint { font-size: 11px; color: #777; margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Settings</h1>
+  <div class="field">
+    <label for="maxCount">Max Cockroach Count</label>
+    <input type="number" id="maxCount" min="1" max="99" value="30">
+    <div class="hint">Range: 1-99</div>
+  </div>
+  <div class="field">
+    <label for="growthTime">Baby Growth Time (minutes)</label>
+    <input type="number" id="growthTime" min="1" max="60" value="10">
+    <div class="hint">Range: 1-60 minutes</div>
+  </div>
+  <script src="settings.js"></script>
+</body>
+</html>

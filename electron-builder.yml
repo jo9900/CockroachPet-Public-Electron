@@ -1,0 +1,25 @@
+appId: com.cockroachpet.app
+productName: CockroachPet
+directories:
+  output: dist
+
+mac:
+  category: public.app-category.entertainment
+  target:
+    - dmg
+  icon: APP-logo.png
+
+win:
+  target:
+    - nsis
+  icon: APP-logo.ico
+
+nsis:
+  oneClick: true
+  allowToChangeInstallationDirectory: false
+
+files:
+  - "**/*"
+  - "!.superpowers/**"
+  - "!docs/**"
+  - "!dist/**"
