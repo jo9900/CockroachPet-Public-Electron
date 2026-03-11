@@ -9,7 +9,7 @@ A desktop cockroach pet that roams your screen as a transparent overlay. Built w
 - **20-state AI** — idle, patrol, wander, freeze, dash, alert, flee, curious, flipped, recovering, flying, dragged, dropped, dead, baby, spawning, squished, wall crawl, playing dead, grooming
 - **Cursor interaction** — cockroaches react to your mouse: alert when cursor is within 100px, flee from fast cursor movement (>200px/s), cautiously approach when cursor stays still for 3s
 - **Drag & drop** — long-press (>200ms) to pick up, release to drop (with gravity physics)
-- **Flying** — corner a cockroach near a screen edge (<40px from border), keep your cursor close (<100px) for 1-2.5s, and it takes flight toward the center of the screen
+- **Flying** — corner a cockroach near a screen edge (<100px from border), keep your cursor close (<100px) for 0.2-0.6s, and it takes flight toward the center of the screen. Fleeing cockroaches that reach an edge take off immediately
 - **Persistence** — cockroach positions and states saved across restarts
 
 ### Squish & Breeding
@@ -27,7 +27,7 @@ A desktop cockroach pet that roams your screen as a transparent overlay. Built w
 - **Antenna grooming** — idle animation where front leg reaches up to clean antennae (2-4s duration)
 
 ### System
-- **System tray** — summon, kill all, settings, quit
+- **System tray** — cockroach emoji icon (with template fallback for macOS dark/light mode), summon, kill all, settings, quit
 - **Global shortcuts** — `Cmd/Ctrl+N` summon, `Cmd/Ctrl+K` kill all
 - **Settings** — max cockroach count (1-99), baby growth time (1-60 min)
 
@@ -152,6 +152,7 @@ Pet-Electron/
 │   └── settings/
 │       ├── settings.html    # Settings window UI
 │       └── settings.js      # Settings form logic
+├── assets/                  # Tray icons (emoji + template fallback)
 ├── APP-logo.ico             # Windows app icon
 ├── APP-logo.png             # macOS app icon
 ├── electron-builder.yml     # Packaging configuration
