@@ -137,6 +137,8 @@ ipcRenderer.on('request-state', () => {
 ipcRenderer.send('request-state');
 
 let lastSaveTime = Date.now();
+let lastPositionSendTime = 0;
+const POSITION_SEND_INTERVAL_MS = 100;
 let nightSpawnTimer = 0;
 
 // Animation loop
@@ -253,11 +255,14 @@ function loop(now) {
     }
   }
 
-  // Send cockroach positions to main process for hit-testing
-  const positions = manager.cockroaches
-    .filter(c => c.state !== STATES.DEAD && c.state !== STATES.SQUISHED)
-    .map(c => ({ x: c.x, y: c.y, radius: c.radius }));
-  ipcRenderer.send('cockroach-positions', positions);
+  // Send cockroach positions to main process for hit-testing (throttled)
+  if (now - lastPositionSendTime >= POSITION_SEND_INTERVAL_MS) {
+    lastPositionSendTime = now;
+    const positions = manager.cockroaches
+      .filter(c => c.state !== STATES.DEAD && c.state !== STATES.SQUISHED)
+      .map(c => ({ x: c.x, y: c.y, radius: c.radius }));
+    ipcRenderer.send('cockroach-positions', positions);
+  }
 
   // Periodic state save
   if (Date.now() - lastSaveTime >= SAVE_INTERVAL_MS) {

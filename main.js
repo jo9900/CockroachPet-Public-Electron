@@ -112,22 +112,13 @@ setInterval(() => {
 
 function createTray() {
   const iconPath = path.join(__dirname, 'assets', 'tray-icon.png');
-  let icon;
+  let icon = nativeImage.createFromPath(iconPath);
 
-  if (fs.existsSync(iconPath)) {
-    icon = nativeImage.createFromPath(iconPath);
-  } else {
-    // Fallback: 16x16 brown square encoded as a 1x1 PNG scaled up
-    const size = 16;
-    const buffer = Buffer.alloc(size * size * 4);
-    // RGBA brown: r=101, g=67, b=33, a=255
-    for (let i = 0; i < size * size; i++) {
-      buffer[i * 4 + 0] = 101;
-      buffer[i * 4 + 1] = 67;
-      buffer[i * 4 + 2] = 33;
-      buffer[i * 4 + 3] = 255;
-    }
-    icon = nativeImage.createFromBuffer(buffer, { width: size, height: size });
+  if (icon.isEmpty()) {
+    // Fallback: use template silhouette icon
+    const templatePath = path.join(__dirname, 'assets', 'tray-iconTemplate.png');
+    icon = nativeImage.createFromPath(templatePath);
+    icon.setTemplateImage(true);
   }
 
   tray = new Tray(icon);

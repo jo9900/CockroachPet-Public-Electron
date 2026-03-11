@@ -22,6 +22,14 @@
 - Added `FLY_EDGE_MARGIN` constant (100px) separate from `EDGE_MARGIN` (40px) so flying triggers more easily near screen edges.
 - Reduced fly delay from 1–2.5s to 0.5–1.5s for faster response.
 
+### Add tray icon and performance/behavior improvements
+
+- Added emoji-based cockroach tray icon (`assets/tray-icon.png`, `tray-icon@2x.png`) with template silhouette fallback for macOS dark/light mode.
+- Replaced brown-square fallback with proper icon loading in `main.js`.
+- Throttled IPC `cockroach-positions` from every frame (~60/s) to every 100ms (~10/s) to reduce overhead.
+- Shortened fly delay from 0.5–1.5s to 0.2–0.6s in ALERT state for faster takeoff.
+- Added immediate flight trigger when fleeing cockroaches reach screen edges (no delay).
+
 ### Documentation updates
 
 - Updated README with detailed trigger conditions for all interactions (cursor distances, timing, probabilities).

@@ -251,7 +251,7 @@ function updateAlert(cockroach, dt, cursor, screenW, screenH) {
   if (isNearEdge(cockroach.x, cockroach.y, screenW, screenH, FLY_EDGE_MARGIN) && d < DIST_ALERT_ENTER) {
     if (cockroach.stateData.flyDelayTimer === null) {
       cockroach.stateData.flyDelayTimer = 0;
-      cockroach.stateData.flyDelay = rand(0.5, 1.5);
+      cockroach.stateData.flyDelay = rand(0.2, 0.6);
     }
     cockroach.stateData.flyDelayTimer += dt;
     if (cockroach.stateData.flyDelayTimer >= cockroach.stateData.flyDelay) {
@@ -268,12 +268,23 @@ function updateAlert(cockroach, dt, cursor, screenW, screenH) {
   }
 }
 
-function updateFlee(cockroach) {
+function updateFlee(cockroach, screenW, screenH) {
   if (!cockroach.stateData.duration) {
     cockroach.stateData.duration = rand(1, 2);
   }
 
   cockroach.speed = SPEED_FLEE * nightMultiplier();
+
+  // Flee to edge → take off immediately
+  if (isNearEdge(cockroach.x, cockroach.y, screenW, screenH, FLY_EDGE_MARGIN)) {
+    const targetX = screenW / 2 + (Math.random() - 0.5) * screenW * 0.4;
+    const targetY = screenH / 2 + (Math.random() - 0.5) * screenH * 0.4;
+    enterState(cockroach, STATES.FLYING);
+    cockroach.stateData.targetX = targetX;
+    cockroach.stateData.targetY = targetY;
+    cockroach.stateData.flying = true;
+    return;
+  }
 
   if (cockroach.stateTimer >= cockroach.stateData.duration) {
     transitionIdle(cockroach);
@@ -555,7 +566,7 @@ function updateAI(cockroach, dt, cursor, screenW, screenH) {
     case STATES.FREEZE:     updateFreeze(cockroach, cursor); break;
     case STATES.DASH:       updateDash(cockroach); break;
     case STATES.ALERT:      updateAlert(cockroach, dt, cursor, screenW, screenH); break;
-    case STATES.FLEE:       updateFlee(cockroach); break;
+    case STATES.FLEE:       updateFlee(cockroach, screenW, screenH); break;
     case STATES.CURIOUS:    updateCurious(cockroach, dt, cursor); break;
     case STATES.FLIPPED:    updateFlipped(cockroach); break;
     case STATES.RECOVERING: updateRecovering(cockroach); break;
