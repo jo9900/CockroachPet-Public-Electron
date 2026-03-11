@@ -10,6 +10,7 @@ class InputHandler {
     this.mouseDownTime = 0;
     this.dragTarget = null;
     this.lastClickTime = 0;
+    this.onSquish = null; // callback for fear scatter
 
     this.setupCursorTracking();
     this.setupMouseEvents();
@@ -85,17 +86,22 @@ class InputHandler {
   }
 
   onClick(cockroach) {
-    if (cockroach.state === STATES.DEAD) return;
+    if (cockroach.state === STATES.DEAD || cockroach.state === STATES.SQUISHED) return;
     cockroach.state = STATES.FLIPPED;
     cockroach.stateTimer = 0;
     cockroach.stateData = {};
   }
 
   onDoubleClick(cockroach) {
-    if (cockroach.state === STATES.DEAD) return;
-    cockroach.state = STATES.SPAWNING;
+    if (cockroach.state === STATES.DEAD || cockroach.state === STATES.SQUISHED) return;
+    // SQUISH! Splat the cockroach flat
+    cockroach.state = STATES.SQUISHED;
     cockroach.stateTimer = 0;
     cockroach.stateData = {};
+    // Trigger fear scatter callback
+    if (this.onSquish) {
+      this.onSquish(cockroach);
+    }
   }
 }
 

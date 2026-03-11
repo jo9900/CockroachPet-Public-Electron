@@ -15,6 +15,10 @@ const STATES = {
   DEAD: 'dead',
   BABY: 'baby',
   SPAWNING: 'spawning',
+  SQUISHED: 'squished',
+  WALL_CRAWL: 'wall_crawl',
+  PLAYING_DEAD: 'playing_dead',
+  GROOMING: 'grooming',
 };
 
 let nextId = 1;
@@ -33,7 +37,7 @@ class Cockroach {
     this.antennaPhase = Math.random() * Math.PI * 2;
     this.stateTimer = 0;
     this.stateData = {};
-    this.radius = isBaby ? 12 : 25;
+    this.radius = isBaby ? 18 : 40;
   }
 
   toJSON() {

@@ -1,0 +1,46 @@
+'use strict';
+
+// Speed constants (pixels per frame at 60fps)
+const SPEED_PATROL = 1.0;
+const SPEED_WANDER = 0.8;
+const SPEED_DASH = 6.0;
+const SPEED_FLEE = 5.5;
+const SPEED_CURIOUS = 0.5;
+const SPEED_RECOVERING = 3.0;
+const SPEED_FLYING = 17.5;
+const SPEED_BABY = 1.2;
+const SPEED_WALL_CRAWL = 0.6;
+
+// Distance thresholds (pixels)
+const DIST_ALERT_ENTER = 100;
+const DIST_ALERT_LEAVE = 150;
+const DIST_CURIOUS_STOP = 30;
+const EDGE_MARGIN = 40;
+const FLY_EDGE_MARGIN = 100;
+const WALL_CRAWL_MARGIN = 15;
+const PLAYING_DEAD_TRIGGER_DIST = 60;
+
+// Cursor speed thresholds (pixels/second)
+const CURSOR_FAST_THRESHOLD = 200;
+const CURSOR_STILL_THRESHOLD = 20;
+
+module.exports = {
+  SPEED_PATROL,
+  SPEED_WANDER,
+  SPEED_DASH,
+  SPEED_FLEE,
+  SPEED_CURIOUS,
+  SPEED_RECOVERING,
+  SPEED_FLYING,
+  SPEED_BABY,
+  SPEED_WALL_CRAWL,
+  DIST_ALERT_ENTER,
+  DIST_ALERT_LEAVE,
+  DIST_CURIOUS_STOP,
+  EDGE_MARGIN,
+  FLY_EDGE_MARGIN,
+  WALL_CRAWL_MARGIN,
+  PLAYING_DEAD_TRIGGER_DIST,
+  CURSOR_FAST_THRESHOLD,
+  CURSOR_STILL_THRESHOLD,
+};

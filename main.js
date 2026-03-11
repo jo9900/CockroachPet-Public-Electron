@@ -188,11 +188,9 @@ ipcMain.on('save-state', (_event, cockroachData) => {
 });
 
 ipcMain.on('request-state', (event) => {
-  const data = {
-    cockroaches: loadCockroaches(),
-    settings: loadSettings(),
-  };
-  event.reply('load-state', data);
+  const cockroaches = loadCockroaches();
+  const settings = loadSettings();
+  event.reply('load-state', { cockroaches, settings });
 });
 
 ipcMain.on('get-settings', (event) => {

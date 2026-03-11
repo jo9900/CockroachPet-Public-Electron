@@ -1,55 +1,31 @@
 'use strict';
 
 const { STATES } = require('./cockroach');
+const {
+  SPEED_PATROL, SPEED_WANDER, SPEED_DASH, SPEED_FLEE, SPEED_CURIOUS,
+  SPEED_RECOVERING, SPEED_FLYING, SPEED_BABY, SPEED_WALL_CRAWL,
+  DIST_ALERT_ENTER, DIST_ALERT_LEAVE, DIST_CURIOUS_STOP,
+  EDGE_MARGIN, FLY_EDGE_MARGIN, WALL_CRAWL_MARGIN, PLAYING_DEAD_TRIGGER_DIST,
+  CURSOR_FAST_THRESHOLD, CURSOR_STILL_THRESHOLD,
+} = require('./constants');
+const { rand, dist, angleTo, normalizeAngle, isNearEdge } = require('./helpers');
 
-// Speed constants
-const SPEED_PATROL = 1.0;
-const SPEED_WANDER = 0.8;
-const SPEED_DASH = 6.0;
-const SPEED_FLEE = 5.5;
-const SPEED_CURIOUS = 0.5;
-const SPEED_RECOVERING = 3.0;
-const SPEED_FLYING = 17.5;
-const SPEED_BABY = 1.2;
+// Night mode state
+let nightMode = false;
 
-// Distance thresholds
-const DIST_ALERT_ENTER = 100;
-const DIST_ALERT_LEAVE = 150;
-const DIST_CURIOUS_STOP = 30;
-const EDGE_MARGIN = 40;
-
-// Cursor speed threshold to distinguish "fast" vs "still"
-const CURSOR_FAST_THRESHOLD = 200; // px/s
-const CURSOR_STILL_THRESHOLD = 20;  // px/s
-
-function rand(min, max) {
-  return min + Math.random() * (max - min);
+function setNightMode(val) {
+  nightMode = val;
 }
 
-function dist(ax, ay, bx, by) {
-  const dx = bx - ax;
-  const dy = by - ay;
-  return Math.sqrt(dx * dx + dy * dy);
+function isNightActive() {
+  return nightMode;
 }
 
-function angleTo(ax, ay, bx, by) {
-  return Math.atan2(by - ay, bx - ax);
+function nightMultiplier() {
+  return nightMode ? 1.5 : 1.0;
 }
 
-function normalizeAngle(a) {
-  while (a > Math.PI) a -= Math.PI * 2;
-  while (a < -Math.PI) a += Math.PI * 2;
-  return a;
-}
-
-function isNearEdge(x, y, screenW, screenH) {
-  return (
-    x < EDGE_MARGIN ||
-    x > screenW - EDGE_MARGIN ||
-    y < EDGE_MARGIN ||
-    y > screenH - EDGE_MARGIN
-  );
-}
+// ─── State transition helpers ────────────────────────────────────────────────
 
 function enterState(cockroach, state) {
   cockroach.state = state;
@@ -66,14 +42,12 @@ function transitionIdle(cockroach) {
 function transitionAlert(cockroach, cursor) {
   enterState(cockroach, STATES.ALERT);
   cockroach.speed = 0;
-  // alertAngle in local space (after render rotation of angle + PI/2)
   const screenAngle = angleTo(cockroach.x, cockroach.y, cursor.x, cursor.y);
   cockroach.stateData.alertAngle = screenAngle - cockroach.angle - Math.PI / 2;
   cockroach.stateData.stillTimer = 0;
   cockroach.stateData.flyDelayTimer = null;
 }
 
-// Update cursor tracking data stored on cockroach stateData
 function trackCursorSpeed(stateData, cursor, dt) {
   if (stateData.prevCursorX === undefined) {
     stateData.prevCursorX = cursor.x;
@@ -89,9 +63,9 @@ function trackCursorSpeed(stateData, cursor, dt) {
   stateData.prevCursorY = cursor.y;
 }
 
-// ─── State handlers ────────────────────────────────────────────────────────────
+// ─── State handlers ──────────────────────────────────────────────────────────
 
-function updateIdle(cockroach, dt, cursor) {
+function updateIdle(cockroach, cursor, screenW, screenH) {
   cockroach.speed = 0;
   const d = dist(cockroach.x, cockroach.y, cursor.x, cursor.y);
   if (d < DIST_ALERT_ENTER) {
@@ -105,25 +79,42 @@ function updateIdle(cockroach, dt, cursor) {
 
   if (cockroach.stateTimer >= cockroach.stateData.duration) {
     const roll = Math.random();
-    if (roll < 0.3) {
+    const nightBoost = nightMode ? 0.15 : 0;
+    const nearEdge = isNearEdge(cockroach.x, cockroach.y, screenW, screenH, EDGE_MARGIN);
+
+    if (nearEdge && Math.random() < 0.4) {
+      enterState(cockroach, STATES.WALL_CRAWL);
+      cockroach.stateData.duration = rand(4, 12);
+      cockroach.stateData.edge = null;
+    } else if (roll < 0.25) {
       enterState(cockroach, STATES.PATROL);
       cockroach.stateData.duration = rand(3, 7);
       cockroach.angle = Math.random() * Math.PI * 2;
-    } else if (roll < 0.55) {
+    } else if (roll < 0.45) {
       enterState(cockroach, STATES.WANDER);
       cockroach.stateData.duration = rand(5, 10);
-    } else if (roll < 0.75) {
+    } else if (roll < 0.58) {
       enterState(cockroach, STATES.FREEZE);
       cockroach.stateData.duration = rand(2, 5);
-    } else {
+    } else if (roll < 0.70 + nightBoost) {
       enterState(cockroach, STATES.DASH);
       cockroach.stateData.duration = rand(0.5, 1);
+      cockroach.angle = Math.random() * Math.PI * 2;
+    } else if (roll < 0.82 + nightBoost) {
+      enterState(cockroach, STATES.GROOMING);
+      cockroach.stateData.duration = rand(2, 4);
+    } else if (roll < 0.92) {
+      enterState(cockroach, STATES.PLAYING_DEAD);
+      cockroach.stateData.duration = rand(3, 8);
+    } else {
+      enterState(cockroach, STATES.PATROL);
+      cockroach.stateData.duration = rand(3, 7);
       cockroach.angle = Math.random() * Math.PI * 2;
     }
   }
 }
 
-function updatePatrol(cockroach, dt, cursor) {
+function updatePatrol(cockroach, cursor) {
   const d = dist(cockroach.x, cockroach.y, cursor.x, cursor.y);
   if (d < DIST_ALERT_ENTER) {
     transitionAlert(cockroach, cursor);
@@ -139,8 +130,7 @@ function updatePatrol(cockroach, dt, cursor) {
     return;
   }
 
-  cockroach.speed = SPEED_PATROL;
-  // Random small direction changes
+  cockroach.speed = SPEED_PATROL * nightMultiplier();
   cockroach.angle += (Math.random() - 0.5) * 0.08;
 }
 
@@ -160,14 +150,11 @@ function updateWander(cockroach, dt, cursor, screenW, screenH) {
     return;
   }
 
-  cockroach.speed = SPEED_WANDER;
+  cockroach.speed = SPEED_WANDER * nightMultiplier();
 
-  // Follow screen edges: steer toward the nearest edge path
   const cx = cockroach.x;
   const cy = cockroach.y;
-  const margin = EDGE_MARGIN;
 
-  // Compute a target point along the nearest edge
   let targetX = cx;
   let targetY = cy;
 
@@ -178,17 +165,17 @@ function updateWander(cockroach, dt, cursor, screenW, screenH) {
   const minEdge    = Math.min(distLeft, distRight, distTop, distBottom);
 
   if (minEdge === distLeft) {
-    targetX = margin;
+    targetX = EDGE_MARGIN;
     targetY = cy + (Math.random() < 0.5 ? -50 : 50);
   } else if (minEdge === distRight) {
-    targetX = screenW - margin;
+    targetX = screenW - EDGE_MARGIN;
     targetY = cy + (Math.random() < 0.5 ? -50 : 50);
   } else if (minEdge === distTop) {
     targetX = cx + (Math.random() < 0.5 ? -50 : 50);
-    targetY = margin;
+    targetY = EDGE_MARGIN;
   } else {
     targetX = cx + (Math.random() < 0.5 ? -50 : 50);
-    targetY = screenH - margin;
+    targetY = screenH - EDGE_MARGIN;
   }
 
   const desired = angleTo(cx, cy, targetX, targetY);
@@ -196,7 +183,7 @@ function updateWander(cockroach, dt, cursor, screenW, screenH) {
   cockroach.angle += diff * dt * 2;
 }
 
-function updateFreeze(cockroach, dt, cursor) {
+function updateFreeze(cockroach, cursor) {
   const d = dist(cockroach.x, cockroach.y, cursor.x, cursor.y);
   if (d < DIST_ALERT_ENTER) {
     transitionAlert(cockroach, cursor);
@@ -214,12 +201,12 @@ function updateFreeze(cockroach, dt, cursor) {
   }
 }
 
-function updateDash(cockroach, dt) {
+function updateDash(cockroach) {
   if (!cockroach.stateData.duration) {
     cockroach.stateData.duration = rand(0.5, 1);
   }
 
-  cockroach.speed = SPEED_DASH;
+  cockroach.speed = SPEED_DASH * nightMultiplier();
 
   if (cockroach.stateTimer >= cockroach.stateData.duration) {
     transitionIdle(cockroach);
@@ -232,11 +219,9 @@ function updateAlert(cockroach, dt, cursor, screenW, screenH) {
 
   const d = dist(cockroach.x, cockroach.y, cursor.x, cursor.y);
 
-  // Antennae track cursor (in local space)
   const cursorScreenAngle = angleTo(cockroach.x, cockroach.y, cursor.x, cursor.y);
   cockroach.stateData.alertAngle = cursorScreenAngle - cockroach.angle - Math.PI / 2;
 
-  // Leave alert if cursor moves far away
   if (d > DIST_ALERT_LEAVE) {
     transitionIdle(cockroach);
     return;
@@ -244,38 +229,32 @@ function updateAlert(cockroach, dt, cursor, screenW, screenH) {
 
   const cursorSpeed = cockroach.stateData.cursorSpeed || 0;
 
-  // Fast cursor movement → flee
   if (cursorSpeed > CURSOR_FAST_THRESHOLD) {
     enterState(cockroach, STATES.FLEE);
     cockroach.stateData.duration = rand(1, 2);
-    // Flee away from cursor
     cockroach.angle = angleTo(cursor.x, cursor.y, cockroach.x, cockroach.y);
     return;
   }
 
-  // Track how long cursor has been still
   if (cursorSpeed < CURSOR_STILL_THRESHOLD) {
     cockroach.stateData.stillTimer = (cockroach.stateData.stillTimer || 0) + dt;
   } else {
     cockroach.stateData.stillTimer = 0;
   }
 
-  // Cursor still 3s → curious
   if (cockroach.stateData.stillTimer >= 3) {
     enterState(cockroach, STATES.CURIOUS);
     cockroach.stateData.duration = null;
     return;
   }
 
-  // Near edge + cursor is chasing → flying after delay
-  if (isNearEdge(cockroach.x, cockroach.y, screenW, screenH) && d < DIST_ALERT_ENTER) {
+  if (isNearEdge(cockroach.x, cockroach.y, screenW, screenH, FLY_EDGE_MARGIN) && d < DIST_ALERT_ENTER) {
     if (cockroach.stateData.flyDelayTimer === null) {
       cockroach.stateData.flyDelayTimer = 0;
-      cockroach.stateData.flyDelay = rand(1, 2.5);
+      cockroach.stateData.flyDelay = rand(0.5, 1.5);
     }
     cockroach.stateData.flyDelayTimer += dt;
     if (cockroach.stateData.flyDelayTimer >= cockroach.stateData.flyDelay) {
-      // Pick a target on screen away from the cursor
       const targetX = screenW / 2 + (Math.random() - 0.5) * screenW * 0.4;
       const targetY = screenH / 2 + (Math.random() - 0.5) * screenH * 0.4;
       enterState(cockroach, STATES.FLYING);
@@ -289,12 +268,12 @@ function updateAlert(cockroach, dt, cursor, screenW, screenH) {
   }
 }
 
-function updateFlee(cockroach, dt) {
+function updateFlee(cockroach) {
   if (!cockroach.stateData.duration) {
     cockroach.stateData.duration = rand(1, 2);
   }
 
-  cockroach.speed = SPEED_FLEE;
+  cockroach.speed = SPEED_FLEE * nightMultiplier();
 
   if (cockroach.stateTimer >= cockroach.stateData.duration) {
     transitionIdle(cockroach);
@@ -305,7 +284,6 @@ function updateCurious(cockroach, dt, cursor) {
   trackCursorSpeed(cockroach.stateData, cursor, dt);
   const cursorSpeed = cockroach.stateData.cursorSpeed || 0;
 
-  // Fast cursor movement → back to alert
   if (cursorSpeed > CURSOR_FAST_THRESHOLD) {
     transitionAlert(cockroach, cursor);
     return;
@@ -313,13 +291,11 @@ function updateCurious(cockroach, dt, cursor) {
 
   const d = dist(cockroach.x, cockroach.y, cursor.x, cursor.y);
 
-  // Cursor too far → idle
   if (d > DIST_ALERT_LEAVE) {
     transitionIdle(cockroach);
     return;
   }
 
-  // Stop when close enough
   if (d <= DIST_CURIOUS_STOP) {
     cockroach.speed = 0;
     cockroach.angle = angleTo(cockroach.x, cockroach.y, cursor.x, cursor.y);
@@ -330,7 +306,7 @@ function updateCurious(cockroach, dt, cursor) {
   cockroach.angle = angleTo(cockroach.x, cockroach.y, cursor.x, cursor.y);
 }
 
-function updateFlipped(cockroach, dt) {
+function updateFlipped(cockroach) {
   cockroach.speed = 0;
 
   if (!cockroach.stateData.duration) {
@@ -343,14 +319,13 @@ function updateFlipped(cockroach, dt) {
       cockroach.stateData.duration = 1;
       cockroach.angle = Math.random() * Math.PI * 2;
     } else {
-      // 20% chance: spawn babies (signal to manager via stateData flag)
       cockroach.stateData.shouldSpawn = true;
       enterState(cockroach, STATES.SPAWNING);
     }
   }
 }
 
-function updateRecovering(cockroach, dt) {
+function updateRecovering(cockroach) {
   if (!cockroach.stateData.duration) {
     cockroach.stateData.duration = 1;
   }
@@ -362,7 +337,7 @@ function updateRecovering(cockroach, dt) {
   }
 }
 
-function updateFlying(cockroach, dt, screenW, screenH) {
+function updateFlying(cockroach) {
   const tx = cockroach.stateData.targetX;
   const ty = cockroach.stateData.targetY;
   cockroach.stateData.flying = true;
@@ -410,10 +385,9 @@ function updateDropped(cockroach, dt, screenH) {
 
 function updateDead(cockroach) {
   cockroach.speed = 0;
-  // stateTimer used for fade; no transition
 }
 
-function updateBaby(cockroach, dt, cursor) {
+function updateBaby(cockroach, cursor) {
   const d = dist(cockroach.x, cockroach.y, cursor.x, cursor.y);
   if (d < DIST_ALERT_ENTER) {
     transitionAlert(cockroach, cursor);
@@ -429,22 +403,123 @@ function updateBaby(cockroach, dt, cursor) {
     return;
   }
 
-  cockroach.speed = SPEED_BABY;
-  // Random direction changes
+  cockroach.speed = SPEED_BABY * nightMultiplier();
   cockroach.angle += (Math.random() - 0.5) * 0.12;
 }
 
 function updateSpawning(cockroach) {
   cockroach.speed = 0;
-  // Movement handled by manager
 }
 
-// ─── Movement application ──────────────────────────────────────────────────────
+function updateSquished(cockroach) {
+  cockroach.speed = 0;
+}
 
-function applyMovement(cockroach, dt, screenW, screenH) {
+function updateWallCrawl(cockroach, cursor, screenW, screenH) {
+  const d = dist(cockroach.x, cockroach.y, cursor.x, cursor.y);
+  if (d < DIST_ALERT_ENTER) {
+    transitionAlert(cockroach, cursor);
+    return;
+  }
+
+  if (!cockroach.stateData.duration) {
+    cockroach.stateData.duration = rand(4, 12);
+  }
+
+  if (cockroach.stateTimer >= cockroach.stateData.duration) {
+    transitionIdle(cockroach);
+    return;
+  }
+
+  // Snap to nearest edge on first frame (already near edge when entering this state)
+  if (!cockroach.stateData.edge) {
+    const cx = cockroach.x;
+    const cy = cockroach.y;
+    const dists = [
+      { edge: 'top', d: cy },
+      { edge: 'bottom', d: screenH - cy },
+      { edge: 'left', d: cx },
+      { edge: 'right', d: screenW - cx },
+    ];
+    dists.sort((a, b) => a.d - b.d);
+    cockroach.stateData.edge = dists[0].edge;
+    cockroach.stateData.direction = Math.random() < 0.5 ? 1 : -1;
+  }
+
+  const edge = cockroach.stateData.edge;
+  const dir = cockroach.stateData.direction;
+  cockroach.speed = SPEED_WALL_CRAWL * nightMultiplier();
+
+  switch (edge) {
+    case 'top':
+      cockroach.y = WALL_CRAWL_MARGIN;
+      cockroach.angle = dir > 0 ? 0 : Math.PI;
+      break;
+    case 'bottom':
+      cockroach.y = screenH - WALL_CRAWL_MARGIN;
+      cockroach.angle = dir > 0 ? 0 : Math.PI;
+      break;
+    case 'left':
+      cockroach.x = WALL_CRAWL_MARGIN;
+      cockroach.angle = dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+      break;
+    case 'right':
+      cockroach.x = screenW - WALL_CRAWL_MARGIN;
+      cockroach.angle = dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+      break;
+  }
+
+  // Slight wobble for realism
+  cockroach.angle += Math.sin(cockroach.stateTimer * 3) * 0.02;
+}
+
+function updatePlayingDead(cockroach, cursor) {
+  cockroach.speed = 0;
+
+  if (!cockroach.stateData.duration) {
+    cockroach.stateData.duration = rand(3, 8);
+  }
+
+  // If cursor gets close, surprise flee
+  const d = dist(cockroach.x, cockroach.y, cursor.x, cursor.y);
+  if (d < PLAYING_DEAD_TRIGGER_DIST && cockroach.stateTimer > 1.0) {
+    enterState(cockroach, STATES.DASH);
+    cockroach.stateData.duration = rand(1, 2);
+    cockroach.angle = angleTo(cursor.x, cursor.y, cockroach.x, cockroach.y);
+    return;
+  }
+
+  if (cockroach.stateTimer >= cockroach.stateData.duration) {
+    enterState(cockroach, STATES.DASH);
+    cockroach.stateData.duration = rand(0.5, 1);
+    cockroach.angle = Math.random() * Math.PI * 2;
+  }
+}
+
+function updateGrooming(cockroach, dt, cursor) {
+  cockroach.speed = 0;
+
+  const d = dist(cockroach.x, cockroach.y, cursor.x, cursor.y);
+  if (d < DIST_ALERT_ENTER) {
+    transitionAlert(cockroach, cursor);
+    return;
+  }
+
+  if (!cockroach.stateData.duration) {
+    cockroach.stateData.duration = rand(2, 4);
+  }
+
+  cockroach.stateData.groomPhase = (cockroach.stateData.groomPhase || 0) + dt * 4;
+
+  if (cockroach.stateTimer >= cockroach.stateData.duration) {
+    transitionIdle(cockroach);
+  }
+}
+
+// ─── Movement application ────────────────────────────────────────────────────
+
+function applyMovement(cockroach, dt) {
   if (cockroach.speed === 0) return;
-
-  // cockroach.angle = standard math angle (0=right, PI/2=down)
   cockroach.x += Math.cos(cockroach.angle) * cockroach.speed * 60 * dt;
   cockroach.y += Math.sin(cockroach.angle) * cockroach.speed * 60 * dt;
 }
@@ -455,105 +530,57 @@ function clampToScreen(cockroach, screenW, screenH) {
   cockroach.y = Math.max(r, Math.min(screenH - r, cockroach.y));
 }
 
-// ─── Animation phases ──────────────────────────────────────────────────────────
+// ─── Animation phases ────────────────────────────────────────────────────────
 
 function updatePhases(cockroach, dt) {
-  // Leg animation: alternating tripod gait, speed-dependent
-  // No leg animation while flying
   const isFlying = cockroach.state === STATES.FLYING;
-  const legSpeed = (!isFlying && cockroach.speed > 0.01) ? (8 + cockroach.speed * 25) : 0;
+  const isGrooming = cockroach.state === STATES.GROOMING;
+  const legSpeed = (!isFlying && !isGrooming && cockroach.speed > 0.01) ? (8 + cockroach.speed * 25) : 0;
   cockroach.legPhase += legSpeed * dt;
   cockroach.antennaPhase += 1.5 * dt;
 }
 
-// ─── Main export ───────────────────────────────────────────────────────────────
+// ─── Main export ─────────────────────────────────────────────────────────────
 
-/**
- * Update a single cockroach's AI state for one frame.
- * @param {import('./cockroach').Cockroach} cockroach
- * @param {number} dt - Delta time in seconds
- * @param {{ x: number, y: number }} cursor - Cursor position in screen coords
- * @param {number} screenW
- * @param {number} screenH
- */
+const SKIP_MOVEMENT = new Set([STATES.DRAGGED, STATES.DROPPED, STATES.DEAD, STATES.SPAWNING, STATES.SQUISHED]);
+const SKIP_CLAMP = new Set([STATES.FLYING, STATES.DROPPED, STATES.DEAD]);
+
 function updateAI(cockroach, dt, cursor, screenW, screenH) {
   cockroach.stateTimer += dt;
 
   switch (cockroach.state) {
-    case STATES.IDLE:
-      updateIdle(cockroach, dt, cursor);
-      break;
-    case STATES.PATROL:
-      updatePatrol(cockroach, dt, cursor);
-      break;
-    case STATES.WANDER:
-      updateWander(cockroach, dt, cursor, screenW, screenH);
-      break;
-    case STATES.FREEZE:
-      updateFreeze(cockroach, dt, cursor);
-      break;
-    case STATES.DASH:
-      updateDash(cockroach, dt);
-      break;
-    case STATES.ALERT:
-      updateAlert(cockroach, dt, cursor, screenW, screenH);
-      break;
-    case STATES.FLEE:
-      updateFlee(cockroach, dt);
-      break;
-    case STATES.CURIOUS:
-      updateCurious(cockroach, dt, cursor);
-      break;
-    case STATES.FLIPPED:
-      updateFlipped(cockroach, dt);
-      break;
-    case STATES.RECOVERING:
-      updateRecovering(cockroach, dt);
-      break;
-    case STATES.FLYING:
-      updateFlying(cockroach, dt, screenW, screenH);
-      break;
-    case STATES.DRAGGED:
-      updateDragged(cockroach, cursor);
-      break;
-    case STATES.DROPPED:
-      updateDropped(cockroach, dt, screenH);
-      break;
-    case STATES.DEAD:
-      updateDead(cockroach);
-      break;
-    case STATES.BABY:
-      updateBaby(cockroach, dt, cursor);
-      break;
-    case STATES.SPAWNING:
-      updateSpawning(cockroach);
-      break;
-    default:
-      break;
+    case STATES.IDLE:       updateIdle(cockroach, cursor, screenW, screenH); break;
+    case STATES.PATROL:     updatePatrol(cockroach, cursor); break;
+    case STATES.WANDER:     updateWander(cockroach, dt, cursor, screenW, screenH); break;
+    case STATES.FREEZE:     updateFreeze(cockroach, cursor); break;
+    case STATES.DASH:       updateDash(cockroach); break;
+    case STATES.ALERT:      updateAlert(cockroach, dt, cursor, screenW, screenH); break;
+    case STATES.FLEE:       updateFlee(cockroach); break;
+    case STATES.CURIOUS:    updateCurious(cockroach, dt, cursor); break;
+    case STATES.FLIPPED:    updateFlipped(cockroach); break;
+    case STATES.RECOVERING: updateRecovering(cockroach); break;
+    case STATES.FLYING:     updateFlying(cockroach); break;
+    case STATES.DRAGGED:    updateDragged(cockroach, cursor); break;
+    case STATES.DROPPED:    updateDropped(cockroach, dt, screenH); break;
+    case STATES.DEAD:       updateDead(cockroach); break;
+    case STATES.BABY:       updateBaby(cockroach, cursor); break;
+    case STATES.SPAWNING:   updateSpawning(cockroach); break;
+    case STATES.SQUISHED:   updateSquished(cockroach); break;
+    case STATES.WALL_CRAWL: updateWallCrawl(cockroach, cursor, screenW, screenH); break;
+    case STATES.PLAYING_DEAD: updatePlayingDead(cockroach, cursor); break;
+    case STATES.GROOMING:   updateGrooming(cockroach, dt, cursor); break;
+    default: break;
   }
 
-  // Apply movement (skip for states where position is externally controlled)
-  const skipMovement =
-    cockroach.state === STATES.DRAGGED ||
-    cockroach.state === STATES.DROPPED ||
-    cockroach.state === STATES.DEAD ||
-    cockroach.state === STATES.SPAWNING;
-
-  if (!skipMovement) {
-    applyMovement(cockroach, dt, screenW, screenH);
+  if (!SKIP_MOVEMENT.has(cockroach.state)) {
+    applyMovement(cockroach, dt);
   }
 
-  // Clamp to screen, except when flying or dropped (allow off-screen arc)
-  const skipClamp =
-    cockroach.state === STATES.FLYING ||
-    cockroach.state === STATES.DROPPED ||
-    cockroach.state === STATES.DEAD;
-
-  if (!skipClamp) {
+  if (!SKIP_CLAMP.has(cockroach.state)) {
     clampToScreen(cockroach, screenW, screenH);
   }
 
   updatePhases(cockroach, dt);
 }
 
-module.exports = { updateAI };
+module.exports = { updateAI, setNightMode, isNightActive };

@@ -1,5 +1,7 @@
 const { Cockroach, STATES } = require('./cockroach');
 
+const FEAR_SCATTER_RADIUS = 200;
+
 class CockroachManager {
   constructor() {
     this.cockroaches = [];
@@ -25,7 +27,6 @@ class CockroachManager {
     });
   }
 
-  // Spawn 3-5 baby cockroaches at the parent's position, spreading outward
   spawnBabies(parentX, parentY) {
     const count = 3 + Math.floor(Math.random() * 3);
     const babies = [];
@@ -41,14 +42,30 @@ class CockroachManager {
     return babies;
   }
 
-  // Check all babies and graduate them to adults if growth time has elapsed
+  // Fear scatter: nearby cockroaches flee from a squished cockroach
+  fearScatter(sourceX, sourceY) {
+    for (const c of this.cockroaches) {
+      if (c.state === STATES.DEAD || c.state === STATES.SQUISHED) continue;
+      const dx = c.x - sourceX;
+      const dy = c.y - sourceY;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d < FEAR_SCATTER_RADIUS && d > 0) {
+        c.state = STATES.FLEE;
+        c.stateTimer = 0;
+        c.stateData = { duration: 1 + Math.random() * 1.5 };
+        c.angle = Math.atan2(dy, dx); // flee away from source
+        c.speed = 5.5 + Math.random() * 2;
+      }
+    }
+  }
+
   updateGrowth() {
     const now = Date.now();
     const growthMs = this.babyGrowthMinutes * 60 * 1000;
     this.cockroaches.forEach(c => {
       if (c.isBaby && now - c.birthTime >= growthMs) {
         c.isBaby = false;
-        c.radius = 25;
+        c.radius = 40;
         if (c.state === STATES.BABY) {
           c.state = STATES.IDLE;
         }
@@ -56,15 +73,19 @@ class CockroachManager {
     });
   }
 
-  // Remove cockroaches that have been dead long enough (stateTimer >= 2)
+  // Remove cockroaches that have been dead long enough or squished long enough
   cleanup() {
-    this.cockroaches = this.cockroaches.filter(
-      c => c.state !== STATES.DEAD || c.stateTimer < 2
-    );
+    this.cockroaches = this.cockroaches.filter(c => {
+      if (c.state === STATES.DEAD && c.stateTimer >= 2) return false;
+      if (c.state === STATES.SQUISHED && c.stateTimer >= 3) return false;
+      return true;
+    });
   }
 
   getAlive() {
-    return this.cockroaches.filter(c => c.state !== STATES.DEAD);
+    return this.cockroaches.filter(
+      c => c.state !== STATES.DEAD && c.state !== STATES.SQUISHED
+    );
   }
 
   setSettings(maxCount, babyGrowthMinutes) {
@@ -74,7 +95,7 @@ class CockroachManager {
 
   toJSON() {
     return this.cockroaches
-      .filter(c => c.state !== STATES.DEAD)
+      .filter(c => c.state !== STATES.DEAD && c.state !== STATES.SQUISHED)
       .map(c => c.toJSON());
   }
 

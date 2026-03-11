@@ -187,11 +187,73 @@ function drawAntennae(ctx, headX, headY, headR, len, phase, alertAngle, isBaby) 
   drawWhipAntenna(ctx, headX + 2, sy, rA, len, phase + 1.5, color, isBaby, isAlert);
 }
 
+function drawPoopDot(ctx, x, y, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.beginPath();
+  ctx.arc(x, y, 1.8, 0, Math.PI * 2);
+  ctx.fillStyle = '#4A2508';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x - 0.3, y - 0.3, 0.8, 0, Math.PI * 2);
+  ctx.fillStyle = '#6B3812';
+  ctx.globalAlpha = alpha * 0.6;
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawSquished(ctx, cx, cy, scale, angle, progress) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angle);
+
+  // Flatten over time: scaleY goes from 1.0 to 0.2
+  const squishY = Math.max(0.15, 1.0 - progress * 2.5);
+  const squishX = 1.0 + (1.0 - squishY) * 0.6; // wider as it flattens
+  ctx.scale(scale * squishX, scale * squishY);
+
+  // Splat body
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 22, 40, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#5A2D0E';
+  ctx.fill();
+
+  // Goo splatter
+  if (progress > 0.2) {
+    const splatAlpha = Math.min(1, (progress - 0.2) * 2);
+    ctx.globalAlpha = splatAlpha * 0.7;
+    for (let i = 0; i < 6; i++) {
+      const a = (Math.PI * 2 * i) / 6 + 0.3;
+      const r = 18 + Math.sin(i * 2.7) * 8;
+      ctx.beginPath();
+      ctx.arc(Math.cos(a) * r, Math.sin(a) * r, 3 + Math.sin(i) * 2, 0, Math.PI * 2);
+      ctx.fillStyle = '#8B4513';
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Legs sticking out (flattened)
+  ctx.strokeStyle = '#6B3812';
+  ctx.lineWidth = 1.0;
+  for (let i = 0; i < 6; i++) {
+    const side = i < 3 ? -1 : 1;
+    const yOff = (i % 3 - 1) * 14;
+    ctx.beginPath();
+    ctx.moveTo(side * 10, yOff);
+    ctx.lineTo(side * (20 + Math.sin(i) * 4), yOff + Math.cos(i) * 3);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
 function drawCockroach(ctx, cx, cy, scale, opts = {}) {
   const {
     angle = 0, legPhase = 0, antennaPhase = 0,
     isBaby = false, isFlipped = false, isFlying = false,
-    alertAngle = null,
+    alertAngle = null, isPlayingDead = false, isGrooming = false,
+    groomPhase = 0,
   } = opts;
 
   ctx.save();
@@ -217,8 +279,27 @@ function drawCockroach(ctx, cx, cy, scale, opts = {}) {
   }
 
   // === LEGS (behind body) ===
-  if (!isFlipped) {
+  if (isPlayingDead) {
+    // Legs curled inward (playing dead posture)
+    drawFlippedLegs(ctx, bodyLen, bodyW, legColor, 0);
+  } else if (!isFlipped) {
     drawAllLegs(ctx, bodyLen, bodyW, legColor, legPhase, isBaby);
+    // Grooming: front leg reaches up to antenna
+    if (isGrooming && !isBaby) {
+      const gp = groomPhase;
+      const reach = Math.sin(gp) * 0.5 + 0.5; // 0-1
+      const side = Math.sin(gp * 0.3) > 0 ? -1 : 1;
+      ctx.beginPath();
+      ctx.moveTo(side * bodyW * 0.35, -bodyLen * 0.24);
+      ctx.quadraticCurveTo(
+        side * (bodyW * 0.2 + reach * 4), -bodyLen * 0.35 - reach * 8,
+        side * 3, -bodyLen * 0.42 - reach * 6
+      );
+      ctx.strokeStyle = legColor;
+      ctx.lineWidth = 1.2;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
   }
 
   // === CERCI ===
@@ -362,4 +443,4 @@ function drawCockroach(ctx, cx, cy, scale, opts = {}) {
   ctx.restore();
 }
 
-module.exports = { drawCockroach, COLORS };
+module.exports = { drawCockroach, drawSquished, drawPoopDot, COLORS };

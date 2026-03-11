@@ -102,8 +102,70 @@
 - Updated `.gitignore` to include `.superpowers/` and `*.log` entries.
 - `package.json` build scripts (`build`, `build:mac`, `build:win`) were already correct — no changes needed.
 
-### Add minimal night mode
+### Add minimal night mode (initial)
 
 - Added `isNightMode()` helper in `main.js`: returns `true` when the local hour is >= 20 or < 7.
 - Added a `setInterval` (60 s) immediately after `createTray()` definition that updates the tray tooltip to `'CockroachPet 🌙'` during night hours and `'CockroachPet'` during the day.
 - The tooltip is also applied immediately on startup inside `app.whenReady()` after `createTray()` is called, so the correct label shows without waiting for the first tick.
+
+## 2026-03-11
+
+### Enhanced night active mode
+
+- Night mode (20:00–07:00) now affects cockroach behavior in the renderer: all movement speeds are multiplied by 1.5× during night hours.
+- IDLE state transitions weighted toward more DASH at night (+15% probability).
+- Auto-spawns a new cockroach every 45 seconds at screen edges during night mode.
+- Night mode detected in the overlay process via `setNightMode()` / `isNightActive()` exported from `ai.js`.
+
+### Double-click squish kill (SQUISHED state)
+
+- Double-clicking a cockroach now triggers a new `SQUISHED` state instead of `SPAWNING`.
+- Squish animation: cockroach body flattens (scaleY 1.0→0.15) with widening (scaleX +60%), goo splatter particles appear, and flattened legs stick out.
+- Squished cockroach fades out over 1.5 seconds after the initial 1.5s display, then is cleaned up.
+- 40% chance the squished cockroach spawns 3–5 baby cockroaches 0.5 seconds after being squished.
+
+### Fear scatter
+
+- When a cockroach is squished, all cockroaches within a 200px radius enter `FLEE` state.
+- Fleeing cockroaches scatter away from the squish point at 5.5–7.5 speed for 1–2.5 seconds.
+- Implemented via `CockroachManager.fearScatter(sourceX, sourceY)` called from the `InputHandler.onSquish` callback.
+
+### Edge/wall crawling (WALL_CRAWL state)
+
+- New `WALL_CRAWL` state: cockroach picks a random screen edge (top/bottom/left/right) and crawls along it.
+- Smoothly gravitates toward the edge margin (15px from border) while moving along the chosen direction.
+- Duration 4–12 seconds with slight sinusoidal wobble for organic feel.
+- Transitions from IDLE with ~12% probability; cursor proximity interrupts to ALERT.
+
+### Poop trails
+
+- Cockroaches now have a small chance (0.3% per frame) to drop tiny brown droppings while moving.
+- Droppings are rendered as small brown dots (1.8px radius) with a lighter highlight.
+- Each dropping fades out over 30–40 seconds.
+- Maximum 150 droppings on screen; oldest removed when limit exceeded.
+- No droppings while flying, dragged, dead, or squished.
+
+### Playing dead (PLAYING_DEAD state)
+
+- New `PLAYING_DEAD` state: cockroach flips on its back and lies completely still, mimicking death.
+- If cursor approaches within 60px after the first second, cockroach "revives" with a surprise DASH away.
+- Otherwise, after 3–8 seconds, spontaneously revives and scurries away.
+- Transitions from IDLE with ~8% probability.
+- Rendered using the flipped/belly-up pose with no leg movement.
+
+### Antenna grooming (GROOMING state)
+
+- New `GROOMING` state: cockroach stops moving and uses a front leg to clean its antennae.
+- One front leg animates reaching up to the antennae area with a smooth sinusoidal motion.
+- The grooming leg alternates sides based on the groom phase.
+- Duration 2–4 seconds; cursor proximity interrupts to ALERT.
+- Transitions from IDLE with ~10% probability.
+
+### State machine expansion
+
+- Added 4 new states to `STATES` enum in `cockroach.js`: `SQUISHED`, `WALL_CRAWL`, `PLAYING_DEAD`, `GROOMING`.
+- Total states increased from 16 to 20.
+- All new states properly handled in `ai.js` switch statement, movement skip list, and phase update logic.
+- `manager.js` updated: `getAlive()` and `toJSON()` exclude squished cockroaches; `cleanup()` removes squished cockroaches after 3 seconds.
+- `input.js` updated: double-click now triggers `SQUISHED` with `onSquish` callback; single click still triggers `FLIPPED`.
+- `overlay.js` updated: load-state handler now properly parses `{ cockroaches, settings }` object format; integrates poop system, night mode, squish baby spawning, and new render flags.
